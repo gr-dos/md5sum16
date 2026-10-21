@@ -13,7 +13,10 @@
 #include <dos.h>
 #include "md5.h"
 
-#define VERSION   "1.0"
+#ifndef VERSION
+#define VERSION   "unknown"
+#endif
+
 #define BUFSIZE   16384
 #define LINESIZE  512
 #define PATHSIZE  144
@@ -397,7 +400,7 @@ int main(int argc, char **argv)
                 usage(stdout);
                 return 0;
             } else if (strcmp(a, "--version") == 0) {
-                printf("md5sum (16-bit DOS) " VERSION "\n");
+                printf("md5sum (dos-md5sum16) %s\n", VERSION);
                 return 0;
             } else {
                 fprintf(stderr, "%s: unrecognized option '%s'\n", progname, a);
