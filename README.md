@@ -11,7 +11,16 @@ Requires Open Watcom (tested with the Linux-hosted toolchain).
 
     make                         # uses ~/opt/watcom by default
     make WATCOM=/path/to/watcom  # or point it elsewhere
+    make test                    # runs tests/run.sh under DOSBox-X
     make clean
+
+The tests need `dosbox-x` and `md5sum` on the host (override with
+`DOSBOX=` and `HOSTMD5=`); set `KEEP=1` to keep the work directory.
+
+The version is the one line in `VERSION`, DOS style (0.01, 0.02, ...
+1.00), not semantic versioning. When a PR that changes it is merged to
+`main`, the release workflow tags the merge commit `v<VERSION>` and
+publishes a GitHub release with `md5sum.exe` attached.
 
 ## Usage
 
@@ -71,6 +80,8 @@ checksum did not match, or (with `--strict`) any line was malformed.
 - `md5.c`, `md5.h`: MD5 (RFC 1321), written for 16-bit `int` / 32-bit `long`
 - `md5sum.c`: the command-line program
 - `Makefile`: Open Watcom build
+- `VERSION`: the version, compiled in and printed by `--version`
+- `tests/run.sh`: the test suite, run under DOSBox-X by `make test`
 
 ## License
 

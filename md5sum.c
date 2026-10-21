@@ -13,7 +13,10 @@
 #include <dos.h>
 #include "md5.h"
 
-#define VERSION   "1.0"
+#ifndef VERSION
+#define VERSION   "unknown"
+#endif
+
 #define BUFSIZE   16384
 #define LINESIZE  512
 #define PATHSIZE  144
@@ -62,15 +65,45 @@ static void usage(FILE *fp)
 
 /* ---------------------------------------------------------------- hashing */
 
-/* Hash an open handle.  Returns 0 on success, -1 on read error. */
-static int md5_handle(int fd, unsigned char digest[16])
+/* Hash an open handle.  In text mode CR LF becomes LF and a Ctrl-Z
+   ends the file.  The handle is always binary: the Watcom runtime's
+   text mode drops every CR and every Ctrl-Z and reads on past it.
+   Returns 0 on success, -1 on read error. */
+static int md5_handle(int fd, int text, unsigned char digest[16])
 {
     MD5_CTX ctx;
-    int n;
+    int n, i, j;
+    int cr = 0;                 /* a CR ended the previous buffer */
+    int eof = 0;
 
     md5_init(&ctx);
-    while ((n = read(fd, iobuf, BUFSIZE)) > 0)
-        md5_update(&ctx, iobuf, (unsigned)n);
+    while (!eof && (n = read(fd, iobuf, BUFSIZE)) > 0) {
+        if (!text) {
+            md5_update(&ctx, iobuf, (unsigned)n);
+            continue;
+        }
+        if (cr && iobuf[0] != '\n')
+            md5_update(&ctx, (unsigned char *)"\r", 1);
+        cr = 0;
+        for (i = j = 0; i < n; i++) {
+            if (iobuf[i] == 0x1a) {
+                eof = 1;
+                break;
+            }
+            if (iobuf[i] == '\r') {
+                if (i + 1 == n) {
+                    cr = 1;
+                    continue;
+                }
+                if (iobuf[i + 1] == '\n')
+                    continue;
+            }
+            iobuf[j++] = iobuf[i];
+        }
+        md5_update(&ctx, iobuf, (unsigned)j);
+    }
+    if (cr)
+        md5_update(&ctx, (unsigned char *)"\r", 1);
     md5_final(digest, &ctx);
     return n < 0 ? -1 : 0;
 }
@@ -79,16 +112,15 @@ static int md5_handle(int fd, unsigned char digest[16])
 static int md5_file(const char *name, int text, unsigned char digest[16])
 {
     int fd, rc;
-    int flags = text ? O_TEXT : O_BINARY;
 
     if (strcmp(name, "-") == 0) {
-        setmode(0, flags);
-        return md5_handle(0, digest);
+        setmode(0, O_BINARY);
+        return md5_handle(0, text, digest);
     }
-    fd = open(name, O_RDONLY | flags);
+    fd = open(name, O_RDONLY | O_BINARY);
     if (fd < 0)
         return -1;
-    rc = md5_handle(fd, digest);
+    rc = md5_handle(fd, text, digest);
     close(fd);
     return rc;
 }
@@ -397,7 +429,7 @@ int main(int argc, char **argv)
                 usage(stdout);
                 return 0;
             } else if (strcmp(a, "--version") == 0) {
-                printf("md5sum (16-bit DOS) " VERSION "\n");
+                printf("md5sum (dos-md5sum16) %s\n", VERSION);
                 return 0;
             } else {
                 fprintf(stderr, "%s: unrecognized option '%s'\n", progname, a);
