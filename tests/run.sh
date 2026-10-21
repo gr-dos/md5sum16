@@ -41,8 +41,19 @@ printf 'hello\n' > a.txt
 : > empty.dat
 head -c 3000 /dev/urandom > b.bin
 head -c 100000 /dev/urandom > big.bin
-printf 'one\r\ntwo\r\n' > crlf.txt
-printf 'one\ntwo\n' > lf.txt
+# text mode: CR LF becomes LF, a lone CR stays, Ctrl-Z ends the file;
+# the reads are 16 KB, so split.txt and lone.txt put a CR at the end
+# of the first buffer.  uN.txt is the Unix copy of tN.txt.
+printf 'one\r\ntwo\r\n\032junk' > t1.txt
+printf 'one\ntwo\n' > u1.txt
+printf 'a\rb\r\r\n' > t2.txt
+printf 'a\rb\r\n' > u2.txt
+{ head -c 16383 /dev/zero | tr '\0' x; printf '\r\ny\r\n'; } > t3.txt
+{ head -c 16383 /dev/zero | tr '\0' x; printf '\ny\n'; } > u3.txt
+{ head -c 16383 /dev/zero | tr '\0' x; printf '\rz'; } > t4.txt
+cp t4.txt u4.txt
+printf 'end\r' > t5.txt
+cp t5.txt u5.txt
 
 mkdir wild
 echo one > wild/one.c
@@ -84,9 +95,9 @@ md5sum --tag a.txt empty.dat b.bin big.bin >o2.txt
 call rc 2
 md5sum -b a.txt >o3.txt
 call rc 3
-md5sum -t crlf.txt >o4.txt
+md5sum -t t1.txt t2.txt t3.txt t4.txt t5.txt >o4.txt
 call rc 4
-md5sum crlf.txt >o5.txt
+md5sum -t <t1.txt >o5.txt
 call rc 5
 md5sum <a.txt >o6.txt
 call rc 6
@@ -200,11 +211,15 @@ $(hash a.txt) *a.txt
 EOF
 rc 4 0
 expect 4 <<EOF
-$(hash lf.txt)  crlf.txt
+$(hash u1.txt)  t1.txt
+$(hash u2.txt)  t2.txt
+$(hash u3.txt)  t3.txt
+$(hash u4.txt)  t4.txt
+$(hash u5.txt)  t5.txt
 EOF
 rc 5 0
 expect 5 <<EOF
-$(hash crlf.txt)  crlf.txt
+$(hash u1.txt)  -
 EOF
 rc 6 0
 expect 6 <<EOF
