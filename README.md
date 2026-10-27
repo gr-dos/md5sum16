@@ -1,16 +1,29 @@
 # md5sum16
 
-A GNU coreutils compatible `md5sum` for 16-bit MS-DOS, built with Open Watcom.
+A GNU coreutils compatible `md5sum` for 16-bit MS-DOS, built with Open
+Watcom and [libc16](https://github.com/gr-dos/libc16).
 
 The resulting `md5sum.exe` is a small-model, real-mode 8086 executable
-(about 25 KB) that runs on any DOS from an original PC up.
+(about 14 KB; 25 KB with Open Watcom's own runtime) that runs on any DOS
+from an original PC up.
 
 ## Building
 
-Requires Open Watcom (tested with the Linux-hosted toolchain).
+`md5sum.exe` links [libc16](https://github.com/gr-dos/libc16), a C
+runtime for small-model DOS programs, instead of Open Watcom's own, and
+is built with the Open Watcom toolchain that libc16 pins. By default
+`make` runs `scripts/fetch-libc16`, which downloads the libc16 release
+pinned in that script (`libc16-VERSION.zip`), checks it against the
+SHA-256 written there before unpacking it, and unpacks it into
+`build/libc16`. The release's `tools/fetch-watcom` then fetches the Open
+Watcom snapshot libc16 was built with into `build/tools`, also checked
+by SHA-256. This needs `curl`, `unzip`, `sha256sum` and `xz`. To move to
+a newer libc16, set `version` and `sha256` in `scripts/fetch-libc16` to
+the new release's (its `.sha256` asset), both in the same change
+(libc16's `docs/CONSUMERS.md`, "Using libc16").
 
-    make                         # uses ~/opt/watcom by default
-    make WATCOM=/path/to/watcom  # or point it elsewhere
+    make                         # fetches libc16 if needed, builds md5sum.exe
+    make LIBC16_ROOT=../libc16   # or use a built local libc16 checkout
     make test                    # runs tests/run.sh under DOSBox-X
     make clean
 
@@ -79,7 +92,8 @@ checksum did not match, or (with `--strict`) any line was malformed.
 
 - `md5.c`, `md5.h`: MD5 (RFC 1321), written for 16-bit `int` / 32-bit `long`
 - `md5sum.c`: the command-line program
-- `Makefile`: Open Watcom build
+- `Makefile`: Open Watcom and libc16 build
+- `scripts/fetch-libc16`: fetches and builds the pinned libc16
 - `VERSION`: the version, compiled in and printed by `--version`
 - `tests/run.sh`: the test suite, run under DOSBox-X by `make test`
 

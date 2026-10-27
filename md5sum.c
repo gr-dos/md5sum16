@@ -1,9 +1,11 @@
 /*
  * md5sum - compute and check MD5 message digests
  *
- * A GNU coreutils compatible md5sum for 16-bit MS-DOS (Open Watcom C).
+ * A GNU coreutils compatible md5sum for 16-bit MS-DOS (Open Watcom C
+ * with libc16).
  */
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +13,7 @@
 #include <fcntl.h>
 #include <io.h>
 #include <dos.h>
+#include <libc16.h>
 #include "md5.h"
 
 #ifndef VERSION
@@ -38,9 +41,31 @@ static int opt_ignore_missing = 0;
 
 static const char *progname = "md5sum";
 
+/* Writes the strings, up to a null pointer, to fp. */
+static void put(FILE *fp, const char *s, ...)
+{
+    va_list ap;
+
+    va_start(ap, s);
+    for (; s != NULL; s = va_arg(ap, const char *))
+        fputs(s, fp);
+    va_end(ap);
+}
+
+/* "md5sum: A: B\n" on standard error */
+static void error2(const char *a, const char *b)
+{
+    put(stderr, progname, ": ", a, ": ", b, "\n", NULL);
+}
+
+static void try_help(void)
+{
+    fputs("Try 'md5sum --help' for more information.\n", stderr);
+}
+
 static void usage(FILE *fp)
 {
-    fprintf(fp,
+    fputs(
         "Usage: md5sum [OPTION]... [FILE]...\n"
         "Print or check MD5 (128-bit) checksums.\n"
         "With no FILE, or when FILE is -, read standard input.\n"
@@ -60,7 +85,7 @@ static void usage(FILE *fp)
         "  -w, --warn     warn about improperly formatted checksum lines\n"
         "\n"
         "  -h, --help     display this help and exit\n"
-        "      --version  output version information and exit\n");
+        "      --version  output version information and exit\n", fp);
 }
 
 /* ---------------------------------------------------------------- hashing */
@@ -141,11 +166,11 @@ static int sum_one(const char *name)
     unsigned char digest[16];
 
     if (md5_file(name, opt_mode == MODE_TEXT, digest) != 0) {
-        fprintf(stderr, "%s: %s: %s\n", progname, name, strerror(errno));
+        error2(name, strerror(errno));
         return 1;
     }
     if (opt_tag) {
-        printf("MD5 (%s) = ", name);
+        put(stdout, "MD5 (", name, ") = ", NULL);
         print_hex(digest);
     } else {
         print_hex(digest);
@@ -258,6 +283,7 @@ static int check_list(const char *listname)
     size_t len;
     int is_stdin = strcmp(listname, "-") == 0;
     int rc = 0;
+    char num[12];
 
     if (is_stdin) {
         setmode(0, O_TEXT);
@@ -265,8 +291,7 @@ static int check_list(const char *listname)
     } else {
         fp = fopen(listname, "r");
         if (fp == NULL) {
-            fprintf(stderr, "%s: %s: %s\n", progname, listname,
-                    strerror(errno));
+            error2(listname, strerror(errno));
             return 1;
         }
     }
@@ -290,9 +315,9 @@ static int check_list(const char *listname)
         if (parse_line(linebuf, &name, want, &text) != 0) {
             n_bad_format++;
             if (opt_warn)
-                fprintf(stderr,
-                        "%s: %s: %lu: improperly formatted MD5 checksum line\n",
-                        progname, listname, lineno);
+                put(stderr, progname, ": ", listname, ": ",
+                    libc16_ultoa(lineno, num, 10),
+                    ": improperly formatted MD5 checksum line\n", NULL);
             continue;
         }
 
@@ -301,9 +326,8 @@ static int check_list(const char *listname)
                 continue;
             n_bad_read++;
             if (!opt_status) {
-                fprintf(stderr, "%s: %s: %s\n", progname, name,
-                        strerror(errno));
-                printf("%s: FAILED open or read\n", name);
+                error2(name, strerror(errno));
+                put(stdout, name, ": FAILED open or read\n", NULL);
             }
             continue;
         }
@@ -311,11 +335,11 @@ static int check_list(const char *listname)
         if (memcmp(want, got, 16) == 0) {
             n_ok++;
             if (!opt_status && !opt_quiet)
-                printf("%s: OK\n", name);
+                put(stdout, name, ": OK\n", NULL);
         } else {
             n_bad_sum++;
             if (!opt_status)
-                printf("%s: FAILED\n", name);
+                put(stdout, name, ": FAILED\n", NULL);
         }
     }
 
@@ -325,26 +349,28 @@ static int check_list(const char *listname)
     if (n_ok + n_bad_sum + n_bad_read == 0) {
         if (!opt_status) {
             if (opt_ignore_missing && n_bad_format == 0)
-                fprintf(stderr, "%s: %s: no file was verified\n",
-                        progname, listname);
+                error2(listname, "no file was verified");
             else
-                fprintf(stderr,
-                        "%s: %s: no properly formatted MD5 checksum lines found\n",
-                        progname, listname);
+                error2(listname,
+                       "no properly formatted MD5 checksum lines found");
         }
         return 1;
     }
 
     if (!opt_status) {
         if (n_bad_format)
-            fprintf(stderr, "%s: WARNING: %lu line%s improperly formatted\n",
-                    progname, n_bad_format, n_bad_format == 1 ? " is" : "s are");
+            put(stderr, progname, ": WARNING: ",
+                libc16_ultoa(n_bad_format, num, 10), " line",
+                n_bad_format == 1 ? " is" : "s are", " improperly formatted\n",
+                NULL);
         if (n_bad_read)
-            fprintf(stderr, "%s: WARNING: %lu listed file%s could not be read\n",
-                    progname, n_bad_read, n_bad_read == 1 ? "" : "s");
+            put(stderr, progname, ": WARNING: ",
+                libc16_ultoa(n_bad_read, num, 10), " listed file",
+                n_bad_read == 1 ? "" : "s", " could not be read\n", NULL);
         if (n_bad_sum)
-            fprintf(stderr, "%s: WARNING: %lu computed checksum%s did NOT match\n",
-                    progname, n_bad_sum, n_bad_sum == 1 ? "" : "s");
+            put(stderr, progname, ": WARNING: ",
+                libc16_ultoa(n_bad_sum, num, 10), " computed checksum",
+                n_bad_sum == 1 ? "" : "s", " did NOT match\n", NULL);
     }
 
     if (n_bad_read || n_bad_sum || (opt_strict && n_bad_format))
@@ -405,6 +431,7 @@ int main(int argc, char **argv)
     int i, nfiles = 0, endopts = 0;
     int rc = 0;
     int (*fn)(const char *);
+    char opt[2] = { 0, 0 };
 
     for (i = 1; i < argc; i++) {
         const char *a = argv[i];
@@ -429,11 +456,12 @@ int main(int argc, char **argv)
                 usage(stdout);
                 return 0;
             } else if (strcmp(a, "--version") == 0) {
-                printf("md5sum (dos-md5sum16) %s\n", VERSION);
+                fputs("md5sum (dos-md5sum16) " VERSION "\n", stdout);
                 return 0;
             } else {
-                fprintf(stderr, "%s: unrecognized option '%s'\n", progname, a);
-                fprintf(stderr, "Try 'md5sum --help' for more information.\n");
+                put(stderr, progname, ": unrecognized option '", a, "'\n",
+                    NULL);
+                try_help();
                 return 1;
             }
             argv[i] = NULL;
@@ -451,8 +479,10 @@ int main(int argc, char **argv)
                 usage(stdout);
                 return 0;
             default:
-                fprintf(stderr, "%s: invalid option -- '%c'\n", progname, *a);
-                fprintf(stderr, "Try 'md5sum --help' for more information.\n");
+                opt[0] = *a;
+                put(stderr, progname, ": invalid option -- '", opt, "'\n",
+                    NULL);
+                try_help();
                 return 1;
             }
         }
@@ -460,19 +490,19 @@ int main(int argc, char **argv)
     }
 
     if (opt_tag && check) {
-        fprintf(stderr, "%s: the --tag option is meaningless when "
-                "verifying checksums\n", progname);
+        put(stderr, progname, ": the --tag option is meaningless when "
+            "verifying checksums\n", NULL);
         return 1;
     }
     if (opt_tag && opt_mode == MODE_TEXT) {
-        fprintf(stderr, "%s: --tag does not support --text mode\n", progname);
+        put(stderr, progname, ": --tag does not support --text mode\n", NULL);
         return 1;
     }
     if (!check && (opt_quiet || opt_status || opt_warn || opt_strict
                    || opt_ignore_missing)) {
-        fprintf(stderr, "%s: the --quiet, --status, --strict, --warn and "
-                "--ignore-missing options are meaningful only when "
-                "verifying checksums\n", progname);
+        put(stderr, progname, ": the --quiet, --status, --strict, --warn and "
+            "--ignore-missing options are meaningful only when "
+            "verifying checksums\n", NULL);
         return 1;
     }
 
