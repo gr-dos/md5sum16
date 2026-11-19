@@ -54,6 +54,14 @@ printf 'a\rb\r\n' > u2.txt
 cp t4.txt u4.txt
 printf 'end\r' > t5.txt
 cp t5.txt u5.txt
+# binary standard input: NUL, CR LF, Ctrl-Z with bytes after it, and
+# 0xFF must all be hashed as they are, not as DOS text mode would read
+# them.  ubin.dat is what -t hashes.  big1a.bin is the same over
+# several 16 KB reads, with a Ctrl-Z first and random bytes after it.
+printf '\000a\r\nb\032after\r\n\377\000\032tail\377' > bin.dat
+printf '\000a\nb' > ubin.dat
+{ printf '\032\r\n\000\377'; head -c 40000 /dev/urandom; printf '\r\n\032\377'; } \
+    > big1a.bin
 
 mkdir wild
 echo one > wild/one.c
@@ -153,6 +161,21 @@ md5sum --help >o27.txt
 call rc 27
 md5sum --version >o28.txt
 call rc 28
+rem --- binary standard input
+md5sum <bin.dat >o29.txt
+call rc 29
+md5sum - <bin.dat >o30.txt
+call rc 30
+md5sum bin.dat >o31.txt
+call rc 31
+md5sum -b <bin.dat >o32.txt
+call rc 32
+md5sum -t <bin.dat >o33.txt
+call rc 33
+md5sum <big1a.bin >o34.txt
+call rc 34
+md5sum big1a.bin >o35.txt
+call rc 35
 EOF
 
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 300 \
@@ -302,6 +325,37 @@ check "step 27: help" grep -q '^Usage: md5sum' O27.TXT
 rc 28 0
 expect 28 <<EOF
 md5sum (dos-md5sum16) $(cat "$top/VERSION")
+EOF
+
+# binary standard input: the expected hashes are of the fixtures as
+# they are; only the output's CRs are dropped
+rc 29 0
+expect 29 <<EOF
+$(hash bin.dat)  -
+EOF
+rc 30 0
+expect 30 <<EOF
+$(hash bin.dat)  -
+EOF
+rc 31 0
+expect 31 <<EOF
+$(hash bin.dat)  bin.dat
+EOF
+rc 32 0
+expect 32 <<EOF
+$(hash bin.dat) *-
+EOF
+rc 33 0
+expect 33 <<EOF
+$(hash ubin.dat)  -
+EOF
+rc 34 0
+expect 34 <<EOF
+$(hash big1a.bin)  -
+EOF
+rc 35 0
+expect 35 <<EOF
+$(hash big1a.bin)  big1a.bin
 EOF
 
 # ------------------------------------------------------------------
