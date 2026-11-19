@@ -15,15 +15,17 @@ is built with the Open Watcom toolchain that libc16 pins. By default
 `make` runs `scripts/fetch-libc16`, which downloads the libc16 release
 pinned in that script (`libc16-VERSION.zip`), checks it against the
 SHA-256 written there before unpacking it, and unpacks it into
-`build/libc16`. The release's `tools/fetch-watcom` then fetches the Open
-Watcom snapshot libc16 was built with into `build/tools`, also checked
-by SHA-256. This needs `curl`, `unzip`, `sha256sum` and `xz`. To move to
-a newer libc16, set `version` and `sha256` in `scripts/fetch-libc16` to
-the new release's (its `.sha256` asset), both in the same change
-(libc16's `docs/CONSUMERS.md`, "Using libc16").
+`build/libc16`. The build then uses the release's prebuilt library and
+headers; libc16 itself is not compiled. The release's
+`tools/fetch-watcom` fetches the Open Watcom snapshot libc16 was built
+with into `build/tools`, also checked by SHA-256. This needs `curl`,
+`unzip`, `sha256sum` and `xz`. To move to a newer libc16, set `version`
+and `sha256` in `scripts/fetch-libc16` to the new release's (its
+`.sha256` asset), both in the same change (libc16's
+`docs/CONSUMERS.md`, "Using libc16").
 
     make                         # fetches libc16 if needed, builds md5sum.exe
-    make LIBC16_ROOT=../libc16   # or use a built local libc16 checkout
+    make LIBC16_ROOT=../libc16   # or use a local libc16 checkout, already built
     make test                    # runs tests/run.sh under DOSBox-X
     make clean
 
@@ -93,7 +95,8 @@ checksum did not match, or (with `--strict`) any line was malformed.
 - `md5.c`, `md5.h`: MD5 (RFC 1321), written for 16-bit `int` / 32-bit `long`
 - `md5sum.c`: the command-line program
 - `Makefile`: Open Watcom and libc16 build
-- `scripts/fetch-libc16`: fetches and builds the pinned libc16
+- `scripts/fetch-libc16`: downloads the pinned libc16 release, checks its
+  SHA-256 and unpacks its prebuilt library and headers
 - `VERSION`: the version, compiled in and printed by `--version`
 - `tests/run.sh`: the test suite, run under DOSBox-X by `make test`
 
